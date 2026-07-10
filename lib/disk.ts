@@ -1,5 +1,4 @@
 import checkDiskSpace from 'check-disk-space';
-import { env } from './env';
 
 export interface DiskInfo {
   path: string;
@@ -9,11 +8,11 @@ export interface DiskInfo {
   usedPercent: number;
 }
 
-export async function getBackupDiskInfo(): Promise<DiskInfo> {
-  const info = await checkDiskSpace(env.BACKUP_DIR);
+export async function getBackupDiskInfo(dir: string): Promise<DiskInfo> {
+  const info = await checkDiskSpace(dir);
   const used = info.size - info.free;
   return {
-    path: env.BACKUP_DIR,
+    path: dir,
     totalBytes: info.size,
     freeBytes: info.free,
     usedBytes: used,

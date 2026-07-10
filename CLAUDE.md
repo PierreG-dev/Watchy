@@ -19,14 +19,16 @@ Self-hosted MongoDB backup app. Next.js 14 App Router + custom server + node-cro
 
 ### `lib/`
 - `env.ts` — **lazy getters** (build-time safe). `isProd()`, `smtpEnabled()`, `defaultMongoConfigured()` are **functions not consts**
+- `mounts.ts` — `listMounts()`: scans `MOUNTS_ROOT` for subdirs, returns disk info + writable + isMountPoint (stat.dev != parent.dev)
+- `backup-path.ts` — `getEffectiveBackupDir()` returns the chosen path **nested under `Watchy/`** (const `BACKUP_ROOT_NAME`) so we don't litter the disk root. Falls back to env `BACKUP_DIR` in dev (no Watchy/ nesting there). Guards path is inside `MOUNTS_ROOT`. `requireBackupDir()` throws 400 if unusable.
 - `session.ts` — JWT HS256, cookie `watchy_session`, **15 min sliding**, `requireSession()` re-issues cookie every call. Uses `next/headers` cookies → route handlers only, NOT edge
 - `password.ts` — argon2id via hash-wasm. `hashPassword`, `verifyPassword`, `timingSafeStringEqual`
 - `rate-limit.ts` — in-memory Map, 5 tries / 15min → 15min lockout
-- `storage.ts` — JSON DB, atomic writes (tmp + rename, 0600), serial write queue. Types: `Target`, `BackupRun`. `newId(prefix)` returns `<prefix>_<base64url>`
+- `storage.ts` — JSON DB, atomic writes (tmp + rename, 0600), serial write queue. Types: `Target`, `BackupRun`, `Settings` (`{ backupDir: string | null }`). `newId(prefix)` returns `<prefix>_<base64url>`. `getSettings/updateSettings` for the storage picker.
 - `mongo.ts` — `buildUri(target)` (URL-encodes creds, respects `customUri`), `testConnection`
 - `mongodump.ts` — spawns `mongodump`, **URI passed via 0600 YAML temp file** (never argv). Output = `${BACKUP_DIR}/<db>/<db>_<iso>.gz`
 - `retention.ts` — group success by db+YM, protect most-recent of each past month, delete non-protected > `BACKUP_RETENTION_DAYS`. `deleteBackupWithFile()` has path traversal guard
-- `runner.ts` — `runTargetById`, `runAllTargets`, `runningTargetIds()` (in-memory Set). Runs **serial** (RPi + one USB). Calls retention + mailer after run
+- `runner.ts` — `runTargetById`, `runAllTargets`, `runningTargetIds()` (in-memory Set). Runs **serial** (RPi + one USB). Resolves effective `baseDir` via `getEffectiveBackupDir()`, refuses to run if no usable disk. Calls retention + mailer after run.
 - `mailer.ts` — nodemailer. Single email per failed run. No-op if SMTP not configured
 - `scheduler.ts` — starts once, `startScheduler()` guarded by `started` flag
 - `disk.ts` — `check-disk-space` on `BACKUP_DIR`
@@ -46,7 +48,9 @@ Self-hosted MongoDB backup app. Next.js 14 App Router + custom server + node-cro
 - `backups` GET (filters: `targetId`, `dbName`), `backups/[id]` DELETE (refuses `protected` and `running`), `backups/[id]/download` GET (streams file, ID lookup, path guard)
 - `backups/run` POST (all)
 - `config/export` GET, `config/import` POST (`{payload, mode: 'merge'|'replace'}`)
-- `status` GET — dashboard aggregate
+- `mounts` GET — lists candidate storage locations (subdirs of `MOUNTS_ROOT`)
+- `settings` GET/PATCH — currently persists only `backupDir` (validated inside `MOUNTS_ROOT`)
+- `status` GET — dashboard aggregate (adds `storage: {source,dir,usable,reason}`)
 - `healthz` GET — public
 - All protected routes call `requireSession()` first. `export const dynamic = 'force-dynamic'`
 
@@ -62,11 +66,19 @@ Self-hosted MongoDB backup app. Next.js 14 App Router + custom server + node-cro
 - `Panel`, `Button` (variants: primary/ghost/subtle/danger), `Input`+`Textarea`+`Label`, `Modal`
 
 ## Env vars (see `.env.example`)
-Required at runtime: `APP_USERNAME`, `APP_PASSWORD_HASH` (argon2id encoded), `SESSION_SECRET` (hex, ≥48 bytes)
-Storage: `DATA_DIR` (small, SD card volume), `BACKUP_DIR` (bind mount to USB — the ONLY path the app writes dumps to)
+Required at runtime: `APP_USERNAME`, `APP_PASSWORD_HASH` (argon2id encoded, `$` escaped as `\$`), `SESSION_SECRET` (hex, ≥48 bytes)
+Storage: `DATA_DIR` (small, SD card volume), `MOUNTS_ROOT` (parent bind of host `/mnt`, where UI scans candidates), `BACKUP_DIR` (dev fallback only)
 Mongo defaults: `MONGO_HOST/PORT/USERNAME/PASSWORD/AUTH_SOURCE/EXTRA_OPTIONS`. Overridden per-target by `customUri`.
 Schedule: `BACKUP_CRON`, `BACKUP_RETENTION_DAYS`, `TZ`
 SMTP (all optional): `SMTP_HOST/PORT/SECURE/USER/PASS/FROM/TO`. `SMTP_HOST` empty → notifications silently disabled.
+
+## Storage selection flow
+- Host mounts USB drives under `/mnt/*` via `/etc/fstab` (durable, `nofail`)
+- Compose bind-mounts `/mnt → /app/mounts` (rslave propagation)
+- UI Settings → "Backup storage" panel shows every subdir + disk usage + writable flag
+- Selection stored as absolute path in `db.json` → `settings.backupDir`
+- All backup ops (mongodump write, retention delete, download stream) route through `getEffectiveBackupDir()` — never `env.BACKUP_DIR` directly
+- Dashboard shows a warning banner when `storage.usable === false`
 
 ## Docker
 - `Dockerfile` multi-stage node:20-bookworm-slim

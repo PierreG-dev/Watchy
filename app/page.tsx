@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Play, Database, Clock, HardDrive, Server, Mail, PlusCircle, RefreshCcw } from 'lucide-react';
+import { Play, Database, Clock, HardDrive, Server, Mail, PlusCircle, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Panel } from '@/components/Panel';
 import { Button } from '@/components/Button';
@@ -22,6 +22,7 @@ type StatusResp = {
     totalRuns: number;
   }[];
   disk: { path: string; totalBytes: number; freeBytes: number; usedBytes: number; usedPercent: number } | null;
+  storage: { source: 'setting' | 'env'; dir: string; usable: boolean; reason: string | null };
   config: {
     cron: string;
     retentionDays: number;
@@ -103,6 +104,18 @@ export default function Dashboard() {
         <div className="mb-4 rounded-md border border-accent-red/40 bg-accent-red/10 px-3 py-2 font-mono text-xs text-accent-red">
           {error}
         </div>
+      )}
+
+      {data && !data.storage.usable && (
+        <Link href="/settings" className="mb-4 flex items-center justify-between gap-3 rounded-md border border-accent-amber/40 bg-accent-amber/10 px-3 py-2.5 text-accent-amber hover:bg-accent-amber/15">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="text-sm">
+              No backup destination selected. Backups will fail until you pick a disk in Settings.
+            </span>
+          </div>
+          <span className="font-mono text-[11px] uppercase">go to settings →</span>
+        </Link>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">

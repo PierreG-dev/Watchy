@@ -73,15 +73,25 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 Fill in the MongoDB credentials and (optionally) the SMTP block.
 
-### 3. Adapt the docker-compose bind mount
+### 3. Docker-compose bind mount (already set up)
 
-In `docker-compose.yml`, change the USB bind mount if needed:
+`docker-compose.yml` bind-mounts the host's entire `/mnt` into the container so
+Watchy can see *any* disk mounted under `/mnt` and let you pick one from the UI:
 
 ```yaml
     volumes:
       - watchy-data:/app/data
-      - /mnt/usb-backup:/app/backups   # <-- host path must match your fstab entry
+      - { type: bind, source: /mnt, target: /app/mounts, bind: { propagation: rslave } }
 ```
+
+You do NOT need to edit this file when you plug in a new disk — just mount it
+under `/mnt/<something>` on the host and click **Rescan** in Settings.
+
+### 3bis. Pick the destination in the UI
+
+After first boot, log in → **Settings** → **Backup storage** → click on the
+disk you want to use. The choice is persisted in `data/db.json`. The dashboard
+shows a warning banner as long as no disk is selected.
 
 ### 4. Deploy
 

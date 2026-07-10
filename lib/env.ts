@@ -54,6 +54,8 @@ export const env = {
 
   get DATA_DIR() { return path.resolve(opt('DATA_DIR', path.join(process.cwd(), 'data'))); },
   get BACKUP_DIR() { return path.resolve(opt('BACKUP_DIR', path.join(process.cwd(), 'backups'))); },
+  /** Parent bind mount that lets Watchy see the host's mount points (e.g. /mnt). */
+  get MOUNTS_ROOT() { return path.resolve(opt('MOUNTS_ROOT', path.join(process.cwd(), 'mounts'))); },
 
   get SMTP_HOST() { return opt('SMTP_HOST'); },
   get SMTP_PORT() { return optInt('SMTP_PORT', 587); },

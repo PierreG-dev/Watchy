@@ -3,7 +3,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { env } from './env';
 import { buildUri } from './mongo';
 import type { Target } from './storage';
 
@@ -15,15 +14,15 @@ export interface DumpResult {
 }
 
 /**
- * Run mongodump for a target. Writes a gzipped archive into BACKUP_DIR/<dbName>/.
+ * Run mongodump for a target. Writes a gzipped archive into `<baseDir>/<dbName>/`.
  * URI is passed via a 0600 temp config file so it never appears in `ps aux`.
  */
-export async function runMongodump(target: Target): Promise<DumpResult> {
+export async function runMongodump(target: Target, baseDir: string): Promise<DumpResult> {
   const uri = buildUri(target);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const safeDb = target.dbName.replace(/[^a-zA-Z0-9_-]/g, '_');
   const fileName = `${safeDb}_${stamp}.gz`;
-  const dbDir = path.join(env.BACKUP_DIR, safeDb);
+  const dbDir = path.join(baseDir, safeDb);
   await fs.mkdir(dbDir, { recursive: true });
   const absolutePath = path.join(dbDir, fileName);
   const relativePath = path.join(safeDb, fileName);

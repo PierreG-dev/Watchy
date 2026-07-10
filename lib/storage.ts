@@ -30,13 +30,19 @@ export interface BackupRun {
   protected: boolean;
 }
 
+export interface Settings {
+  /** Absolute path where dumps are written. When null, no disk is selected yet. */
+  backupDir: string | null;
+}
+
 interface DbShape {
   targets: Target[];
   backups: BackupRun[];
+  settings: Settings;
   version: 1;
 }
 
-const emptyDb = (): DbShape => ({ targets: [], backups: [], version: 1 });
+const emptyDb = (): DbShape => ({ targets: [], backups: [], settings: { backupDir: null }, version: 1 });
 
 let cache: DbShape | null = null;
 const writeQueue: Array<() => Promise<void>> = [];
@@ -61,7 +67,10 @@ async function load(): Promise<DbShape> {
     if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.targets) || !Array.isArray(parsed.backups)) {
       cache = emptyDb();
     } else {
-      cache = { targets: parsed.targets, backups: parsed.backups, version: 1 };
+      const settings: Settings = parsed.settings && typeof parsed.settings === 'object'
+        ? { backupDir: typeof parsed.settings.backupDir === 'string' ? parsed.settings.backupDir : null }
+        : { backupDir: null };
+      cache = { targets: parsed.targets, backups: parsed.backups, settings, version: 1 };
     }
   } catch (err: any) {
     if (err.code === 'ENOENT') {
@@ -213,6 +222,22 @@ export async function deleteBackup(id: string): Promise<BackupRun | null> {
   return removed;
 }
 
+// ------ Settings -------------------------------------------------------------
+
+export async function getSettings(): Promise<Settings> {
+  const db = await load();
+  return { ...db.settings };
+}
+
+export async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
+  let out: Settings = { backupDir: null };
+  await mutate((db) => {
+    db.settings = { ...db.settings, ...patch };
+    out = { ...db.settings };
+  });
+  return out;
+}
+
 // ------ Import / Export ------------------------------------------------------
 
 export interface ExportPayload {
@@ -220,6 +245,7 @@ export interface ExportPayload {
   exportedAt: string;
   targets: Target[];
   backups: BackupRun[];
+  settings?: Settings;
 }
 
 export async function exportAll(): Promise<ExportPayload> {
@@ -229,6 +255,7 @@ export async function exportAll(): Promise<ExportPayload> {
     exportedAt: new Date().toISOString(),
     targets: db.targets,
     backups: db.backups,
+    settings: db.settings,
   };
 }
 
@@ -240,6 +267,7 @@ export async function importAll(payload: ExportPayload, mode: 'replace' | 'merge
     if (mode === 'replace') {
       db.targets = payload.targets;
       db.backups = payload.backups;
+      if (payload.settings) db.settings = { backupDir: payload.settings.backupDir ?? null };
       return;
     }
     const byId = new Map(db.targets.map((t) => [t.id, t]));

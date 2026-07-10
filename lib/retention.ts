@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { env } from './env';
 import { listBackups, updateBackup, deleteBackup } from './storage';
+import { getEffectiveBackupDir } from './backup-path';
 
 function ym(iso: string): string {
   const d = new Date(iso);
@@ -19,7 +20,8 @@ function currentYm(): string {
  *  2) for each past month with no protected backup, protect the most recent one
  *  3) delete non-protected backups older than BACKUP_RETENTION_DAYS
  */
-export async function applyRetention(dbNames?: string[]): Promise<{ protectedNow: number; deleted: number }> {
+export async function applyRetention(dbNames?: string[], baseDir?: string): Promise<{ protectedNow: number; deleted: number }> {
+  const dir = baseDir ?? (await getEffectiveBackupDir()).dir;
   const all = await listBackups();
   const successes = all.filter((b) => b.status === 'success');
   const scope = dbNames && dbNames.length
@@ -53,19 +55,20 @@ export async function applyRetention(dbNames?: string[]): Promise<{ protectedNow
     if (!scope.has(b.dbName)) continue;
     if (b.status === 'running') continue;
     if (new Date(b.startedAt).getTime() >= cutoff) continue;
-    await deleteBackupWithFile(b.id, b.relativePath);
+    await deleteBackupWithFile(b.id, b.relativePath, dir);
     deleted++;
   }
 
   return { protectedNow, deleted };
 }
 
-export async function deleteBackupWithFile(id: string, relativePath: string): Promise<void> {
-  const abs = path.join(env.BACKUP_DIR, relativePath);
+export async function deleteBackupWithFile(id: string, relativePath: string, baseDir?: string): Promise<void> {
+  const dir = baseDir ?? (await getEffectiveBackupDir()).dir;
+  const safe = path.resolve(dir);
+  const abs = path.resolve(safe, relativePath);
   // Path traversal guard.
-  const safe = path.resolve(env.BACKUP_DIR);
-  if (!path.resolve(abs).startsWith(safe + path.sep) && path.resolve(abs) !== safe) {
-    throw new Error('Refused to delete outside BACKUP_DIR');
+  if (!abs.startsWith(safe + path.sep) && abs !== safe) {
+    throw new Error('Refused to delete outside backup directory');
   }
   try {
     await fs.unlink(abs);

@@ -1,8 +1,10 @@
 # docker-compose.yml — Coolify-friendly single-service deployment
 #
 # IMPORTANT — before deploying:
-#   1. Adapt the BACKUP host path below to your USB mount point (e.g. /mnt/usb-backup).
+#   1. Mount your USB stick on the HOST (see README /etc/fstab section).
+#      Any mount under `/mnt` will be visible to Watchy automatically.
 #   2. Fill in the .env file (see .env.example).
+#   3. Log into the UI → Settings → pick the disk from the list.
 #
 services:
   watchy:
@@ -11,8 +13,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # Force these two INSIDE-container paths — they must match the volume mappings.
       DATA_DIR: /app/data
+      MOUNTS_ROOT: /app/mounts
+      # BACKUP_DIR is kept only as a dev/fallback; production uses the disk
+      # selected in the UI (stored in db.json).
       BACKUP_DIR: /app/backups
     ports:
       - "3000:3000"
@@ -20,10 +24,15 @@ services:
       # ---- App configuration & backup index (small, stays on the SD card) --
       - watchy-data:/app/data
 
-      # ---- Backup destination (bind mount to the USB stick on the host) ----
-      # CHANGE the left-hand path to wherever your USB stick is mounted on the
-      # Raspberry Pi. See README for how to mount it durably via /etc/fstab.
-      - /mnt/usb-backup:/app/backups
+      # ---- Storage candidates -----------------------------------------------
+      # Bind-mount the host's /mnt so Watchy sees every disk mounted there.
+      # `:rslave` so mount events on the host propagate into the container —
+      # this lets you unplug/replug across a restart without recreating.
+      - type: bind
+        source: /mnt
+        target: /app/mounts
+        bind:
+          propagation: rslave
 
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]

@@ -5,16 +5,18 @@ import { listTargets, listBackups, type BackupRun } from '@/lib/storage';
 import { getBackupDiskInfo } from '@/lib/disk';
 import { env, smtpEnabled, defaultMongoConfigured } from '@/lib/env';
 import { runningTargetIds } from '@/lib/runner';
+import { getEffectiveBackupDir } from '@/lib/backup-path';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(): Promise<NextResponse> {
   try {
     await requireSession();
+    const dirInfo = await getEffectiveBackupDir();
     const [targets, allBackups, disk] = await Promise.all([
       listTargets(),
       listBackups(),
-      getBackupDiskInfo().catch(() => null),
+      getBackupDiskInfo(dirInfo.dir).catch(() => null),
     ]);
 
     const running = new Set(runningTargetIds());
@@ -44,6 +46,12 @@ export async function GET(): Promise<NextResponse> {
     return json({
       cards,
       disk,
+      storage: {
+        source: dirInfo.source,   // 'setting' | 'env'
+        dir: dirInfo.dir,
+        usable: dirInfo.usable,
+        reason: dirInfo.reason ?? null,
+      },
       config: {
         cron: env.BACKUP_CRON,
         retentionDays: env.BACKUP_RETENTION_DAYS,
