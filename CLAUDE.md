@@ -99,10 +99,11 @@ SMTP (all optional): `SMTP_HOST/PORT/SECURE/USER/PASS/FROM/TO`. `SMTP_HOST` empt
 - `npm run hash-password` — `scripts/hash-password.js`, prompts stdin no-echo, outputs argon2id encoded string
 
 ## Gotchas
+- `.env`: every `$` in `APP_PASSWORD_HASH` MUST be escaped as `\$` (single/double quotes do NOT protect — Next's dotenv-expand ignores them). `scripts/hash-password.js` outputs the escaped form. Symptom of a bad hash: 401 on every login and `envHashLooksArgon=false` in the debug log.
 - `env.ts` uses **getters**; call as `env.FOO` not `env.FOO()`. Feature flags ARE functions: `smtpEnabled()`.
 - Middleware is Edge — never import `lib/*` from it
 - `useSearchParams` needs Suspense boundary (already done in login)
-- `next.config.js`: `experimental.instrumentationHook: true` (needed on Next 14), `serverComponentsExternalPackages: ['mongodb', 'nodemailer']`
+- `next.config.js`: `experimental.instrumentationHook: true` (needed on Next 14), `serverComponentsExternalPackages: ['mongodb','nodemailer','node-cron','check-disk-space']` — all deps that use `node:path`/`fs` at import time must be here or Next tries to bundle them and fails with "Can't resolve 'path'"
 - Storage cache is per-process — safe because single container / single process
 - `runningTargetIds` is in-memory; a container restart mid-run leaves stale `status:'running'` rows (acceptable; user can delete)
 - Dashboard polls `/api/status` every 5s → session cookie extended continuously while a tab is open (by design)
