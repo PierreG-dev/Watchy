@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  background: #12151A;
+  color: #E7ECF2;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Grid background — subtle, evocative of a rackmount panel */
+.bg-grid {
+  background-image:
+    linear-gradient(#1A1F27 1px, transparent 1px),
+    linear-gradient(90deg, #1A1F27 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+/* Focus ring — visible & accent-cyan */
+:focus-visible {
+  outline: 2px solid #45D6C4;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Native scrollbar tweak */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #262D38; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #35404E; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Disable browser autofill yellow */
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #1A1F27 inset;
+  -webkit-text-fill-color: #E7ECF2;
+}
