@@ -75,7 +75,6 @@ async function load(): Promise<DbShape> {
   } catch (err: any) {
     if (err.code === 'ENOENT') {
       cache = emptyDb();
-      await persist(cache);
     } else {
       throw err;
     }
