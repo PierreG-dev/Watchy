@@ -38,10 +38,17 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
   }
 }
 
+function cookieSecure(): boolean {
+  const v = process.env.SESSION_COOKIE_SECURE;
+  if (v === 'true' || v === '1') return true;
+  if (v === 'false' || v === '0') return false;
+  return isProd();
+}
+
 function cookieOptions() {
   return {
     httpOnly: true,
-    secure: isProd(),
+    secure: cookieSecure(),
     sameSite: 'strict' as const,
     path: '/',
     maxAge: SESSION_TTL_SECONDS,

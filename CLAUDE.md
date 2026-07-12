@@ -90,7 +90,7 @@ SMTP (all optional): `SMTP_HOST/PORT/SECURE/USER/PASS/FROM/TO`. `SMTP_HOST` empt
 
 ## Security invariants (do not break)
 - Password: argon2id only, hash in env, never plaintext
-- Session: HttpOnly + SameSite=Strict + Secure(prod). No "remember me". 15 min sliding.
+- Session: HttpOnly + SameSite=Strict + Secure(prod, overridable via `SESSION_COOKIE_SECURE=false` for HTTP-only self-hosted setups on trusted LAN). No "remember me". 15 min sliding.
 - CSRF: middleware requires `X-Watchy-CSRF: 1` on mutations. `apiFetch` adds it automatically.
 - Rate limit: login only, per IP (x-forwarded-for first)
 - `mongodump` URI → never in argv, always via temp `--config=` YAML 0600
@@ -108,10 +108,10 @@ SMTP (all optional): `SMTP_HOST/PORT/SECURE/USER/PASS/FROM/TO`. `SMTP_HOST` empt
 ## Scripts
 - `npm run dev` / `start` — both via `server.js` (custom server)
 - `npm run build` — `next build`
-- `npm run hash-password` — `scripts/hash-password.js`, prompts stdin no-echo, outputs argon2id encoded string
+- `npm run hash-password` — `scripts/hash-password.js`, prompts stdin no-echo, outputs `APP_PASSWORD_HASH=<saltHex>:<hashHex>` (hex only)
 
 ## Gotchas
-- `.env`: every `$` in `APP_PASSWORD_HASH` MUST be escaped as `\$` (single/double quotes do NOT protect — Next's dotenv-expand ignores them). `scripts/hash-password.js` outputs the escaped form. Symptom of a bad hash: 401 on every login and `envHashLooksArgon=false` in the debug log.
+- `APP_PASSWORD_HASH` format is `<saltHex>:<hashHex>` (hex only, no `$`) — the previous PHC-encoded form (`$argon2id$...`) got mangled by dotenv-expand/docker-compose/Coolify interpolation. Never store the PHC form; always regenerate via `npm run hash-password`.
 - `env.ts` uses **getters**; call as `env.FOO` not `env.FOO()`. Feature flags ARE functions: `smtpEnabled()`.
 - Middleware is Edge — never import `lib/*` from it
 - `useSearchParams` needs Suspense boundary (already done in login)

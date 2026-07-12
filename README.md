@@ -144,7 +144,8 @@ After every backup run (manual or scheduled):
   arbitrary path parameters, downloads look up backups by ID and refuse any
   resolved path that escapes `BACKUP_DIR`.
 - The container runs as UID 1000 (`watchy`), not root.
-- The password is stored only as an argon2id hash. Rate limiting locks out
+- The password is stored only as an argon2id hash (hex `salt:hash` format, no
+  `$` so env-var interpolation can't corrupt it). Rate limiting locks out
   the offending IP for 15 minutes after 5 failed attempts.
 
 ## Out of scope
