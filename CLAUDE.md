@@ -22,7 +22,7 @@ Self-hosted MongoDB backup app. Next.js 14 App Router + custom server + node-cro
 - `mounts.ts` — `listMounts()`: scans `MOUNTS_ROOT` for subdirs, returns disk info + writable + isMountPoint (stat.dev != parent.dev)
 - `backup-path.ts` — `getEffectiveBackupDir()` returns the chosen path **nested under `Watchy/`** (const `BACKUP_ROOT_NAME`) so we don't litter the disk root. Falls back to env `BACKUP_DIR` in dev (no Watchy/ nesting there). Guards path is inside `MOUNTS_ROOT`. `requireBackupDir()` throws 400 if unusable.
 - `session.ts` — JWT HS256, cookie `watchy_session`, **15 min sliding**, `requireSession()` re-issues cookie every call. Uses `next/headers` cookies → route handlers only, NOT edge
-- `password.ts` — argon2id via hash-wasm. `hashPassword`, `verifyPassword`, `timingSafeStringEqual`
+- `password.ts` — argon2id via hash-wasm, **hex output** stored as `<saltHex>:<hashHex>` (no `$` → immune to dotenv/compose/Coolify interpolation). `hashPassword`, `verifyPassword`, `timingSafeStringEqual`
 - `rate-limit.ts` — in-memory Map, 5 tries / 15min → 15min lockout
 - `storage.ts` — JSON DB, atomic writes (tmp + rename, 0600), serial write queue. Types: `Target`, `BackupRun`, `Settings` (`{ backupDir: string | null }`). `newId(prefix)` returns `<prefix>_<base64url>`. `getSettings/updateSettings` for the storage picker.
 - `mongo.ts` — `buildUri(target)` (URL-encodes creds, respects `customUri`), `testConnection`
@@ -66,7 +66,7 @@ Self-hosted MongoDB backup app. Next.js 14 App Router + custom server + node-cro
 - `Panel`, `Button` (variants: primary/ghost/subtle/danger), `Input`+`Textarea`+`Label`, `Modal`
 
 ## Env vars (see `.env.example`)
-Required at runtime: `APP_USERNAME`, `APP_PASSWORD_HASH` (argon2id encoded, `$` escaped as `\$`), `SESSION_SECRET` (hex, ≥48 bytes)
+Required at runtime: `APP_USERNAME`, `APP_PASSWORD_HASH` (argon2id, hex format `<saltHex>:<hashHex>`), `SESSION_SECRET` (hex, ≥48 bytes)
 Storage: `DATA_DIR` (small, SD card volume), `MOUNTS_ROOT` (parent bind of host `/mnt`, where UI scans candidates), `BACKUP_DIR` (dev fallback only)
 Mongo defaults: `MONGO_HOST/PORT/USERNAME/PASSWORD/AUTH_SOURCE/EXTRA_OPTIONS`. Overridden per-target by `customUri`.
 Schedule: `BACKUP_CRON`, `BACKUP_RETENTION_DAYS`, `TZ`
