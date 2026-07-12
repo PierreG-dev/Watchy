@@ -4,6 +4,6 @@ out
 .env
 .env.local
 *.log
-data/
-backups/
+/data/
+/backups/
 .DS_Store
