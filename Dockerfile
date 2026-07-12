@@ -45,8 +45,11 @@ ENV NODE_ENV=production \
     DATA_DIR=/app/data \
     BACKUP_DIR=/app/backups
 
-# Create the app user matching the default host UID/GID for USB-mount friendly perms.
-RUN groupadd -g 1000 watchy && useradd -m -u 1000 -g 1000 -s /bin/bash watchy \
+# Reuse the built-in `node` user (UID/GID 1000) and rename it to `watchy`.
+# The base image already ships with node:node at 1000:1000, which matches the
+# typical Pi host user for USB-mount friendly perms.
+RUN groupmod -n watchy node \
+    && usermod -l watchy -d /home/watchy -m node \
     && mkdir -p /app/data /app/backups \
     && chown -R watchy:watchy /app
 
