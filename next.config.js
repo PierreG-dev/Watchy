@@ -3,7 +3,6 @@ const NODE_ONLY = ['mongodb', 'nodemailer', 'node-cron', 'check-disk-space'];
 
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
   poweredByHeader: false,
   experimental: {
     instrumentationHook: true,

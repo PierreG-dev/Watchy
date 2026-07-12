@@ -4,7 +4,7 @@ import { errorResponse, json } from '@/lib/http';
 import { runTargetById } from '@/lib/runner';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60 * 60; // 1h — big dumps
+export const maxDuration = 3600; // 1h — big dumps
 
 export async function POST(_req: Request, { params }: { params: { id: string } }): Promise<NextResponse> {
   try {
