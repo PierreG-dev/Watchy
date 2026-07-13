@@ -44,9 +44,10 @@ interface DbShape {
 
 const emptyDb = (): DbShape => ({ targets: [], backups: [], settings: { backupDir: null }, version: 1 });
 
-let cache: DbShape | null = null;
-const writeQueue: Array<() => Promise<void>> = [];
-let writing = false;
+// Serial queue for load+mutate+persist so concurrent writers don't clobber
+// each other. No in-memory cache: every read re-loads from disk, so external
+// writes (or a stale process) can't desynchronise the API.
+let pending: Promise<unknown> = Promise.resolve();
 
 function dbFilePath(): string {
   return path.join(env.DATA_DIR, 'db.json');
@@ -57,29 +58,23 @@ async function ensureDirs(): Promise<void> {
   await fs.mkdir(env.BACKUP_DIR, { recursive: true });
 }
 
-async function load(): Promise<DbShape> {
-  if (cache) return cache;
+async function readFromDisk(): Promise<DbShape> {
   await ensureDirs();
   const file = dbFilePath();
   try {
     const raw = await fs.readFile(file, 'utf8');
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.targets) || !Array.isArray(parsed.backups)) {
-      cache = emptyDb();
-    } else {
-      const settings: Settings = parsed.settings && typeof parsed.settings === 'object'
-        ? { backupDir: typeof parsed.settings.backupDir === 'string' ? parsed.settings.backupDir : null }
-        : { backupDir: null };
-      cache = { targets: parsed.targets, backups: parsed.backups, settings, version: 1 };
+      return emptyDb();
     }
+    const settings: Settings = parsed.settings && typeof parsed.settings === 'object'
+      ? { backupDir: typeof parsed.settings.backupDir === 'string' ? parsed.settings.backupDir : null }
+      : { backupDir: null };
+    return { targets: parsed.targets, backups: parsed.backups, settings, version: 1 };
   } catch (err: any) {
-    if (err.code === 'ENOENT') {
-      cache = emptyDb();
-    } else {
-      throw err;
-    }
+    if (err.code === 'ENOENT') return emptyDb();
+    throw err;
   }
-  return cache!;
 }
 
 async function persist(data: DbShape): Promise<void> {
@@ -90,32 +85,21 @@ async function persist(data: DbShape): Promise<void> {
   await fs.rename(tmp, file);
 }
 
-async function flushQueue(): Promise<void> {
-  if (writing) return;
-  writing = true;
-  try {
-    while (writeQueue.length) {
-      const task = writeQueue.shift()!;
-      await task();
-    }
-  } finally {
-    writing = false;
-  }
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const next = pending.then(task, task);
+  pending = next.catch(() => {});
+  return next;
+}
+
+async function load(): Promise<DbShape> {
+  return enqueue(() => readFromDisk());
 }
 
 async function mutate(fn: (db: DbShape) => void | Promise<void>): Promise<void> {
-  const db = await load();
-  await fn(db);
-  return new Promise<void>((resolve, reject) => {
-    writeQueue.push(async () => {
-      try {
-        await persist(db);
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    });
-    flushQueue();
+  await enqueue(async () => {
+    const db = await readFromDisk();
+    await fn(db);
+    await persist(db);
   });
 }
 

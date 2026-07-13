@@ -116,7 +116,7 @@ SMTP (all optional): `SMTP_HOST/PORT/SECURE/USER/PASS/FROM/TO`. `SMTP_HOST` empt
 - Middleware is Edge — never import `lib/*` from it
 - `useSearchParams` needs Suspense boundary (already done in login)
 - `next.config.js`: `experimental.instrumentationHook: true` (needed on Next 14), `serverComponentsExternalPackages: ['mongodb','nodemailer','node-cron','check-disk-space']` — all deps that use `node:path`/`fs` at import time must be here or Next tries to bundle them and fails with "Can't resolve 'path'"
-- Storage cache is per-process — safe because single container / single process
+- `storage.ts` re-reads `db.json` on every call and serialises mutations via a promise chain — no in-memory cache, so multi-process / external edits stay consistent
 - `runningTargetIds` is in-memory; a container restart mid-run leaves stale `status:'running'` rows (acceptable; user can delete)
 - Dashboard polls `/api/status` every 5s → session cookie extended continuously while a tab is open (by design)
 
